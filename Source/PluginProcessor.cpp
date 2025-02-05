@@ -21,7 +21,9 @@ EqualizerAudioProcessor::EqualizerAudioProcessor()
                      #endif
                        )
 #endif
+    , apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
+
 }
 
 EqualizerAudioProcessor::~EqualizerAudioProcessor()
@@ -166,7 +168,8 @@ bool EqualizerAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* EqualizerAudioProcessor::createEditor()
 {
-    return new EqualizerAudioProcessorEditor (*this);
+    //return new EqualizerAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -181,6 +184,101 @@ void EqualizerAudioProcessor::setStateInformation (const void* data, int sizeInB
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::createParameterLayout() {
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    // Low Cut (High-Pass Filter)
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "LowCutFreq",
+        "Low Cut Frequency",
+        juce::NormalisableRange<float>(20.0f, 500.0f, 0.1f, 0.5f), 80.0f,
+        "Hz",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " Hz"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        "LowCutSlope", "Low Cut Slope",
+        juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 1
+    ));
+
+    // High Cut (Low-Pass Filter)
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "HighCutFreq", "High Cut Frequency",
+        juce::NormalisableRange<float>(2000.0f, 20000.0f, 0.1f, 0.5f), 12000.0f,
+        "Hz",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " Hz"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        "HighCutSlope", "High Cut Slope",
+        juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 1
+    ));
+
+    // Peak Filters (Bell Curve)
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "Peak1Freq", "Peak 1 Frequency",
+        juce::NormalisableRange<float>(100.0f, 10000.0f, 0.1f, 0.5f), 500.0f,
+        "Hz",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " Hz"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "Peak1Gain", "Peak 1 Gain",
+        juce::NormalisableRange<float>(-18.0f, 18.0f, 0.1f, 1.0f), 0.0f,
+        "dB",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " dB"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "Peak1Q", "Peak 1 Quality",
+        juce::NormalisableRange<float>(0.5f, 5.0f, 0.05f, 1.0f), 1.0f
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "Peak2Freq", "Peak 2 Frequency",
+        juce::NormalisableRange<float>(200.0f, 8000.0f, 0.1f, 0.5f), 2000.0f,
+        "Hz",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " Hz"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "Peak2Gain", "Peak 2 Gain",
+        juce::NormalisableRange<float>(-18.0f, 18.0f, 0.1f, 1.0f), 0.0f,
+        "dB",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " dB"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "Peak2Q", "Peak 2 Quality",
+        juce::NormalisableRange<float>(0.5f, 5.0f, 0.05f, 1.0f), 1.0f
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "OutputGain", "Output Gain",
+        juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f, 1.0f), 0.0f,
+        "dB",
+        juce::AudioProcessorParameter::genericParameter,
+        [](float value, int) { return juce::String(value, 1) + " dB"; }
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        "Bypass", "Bypass", false
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        "FilterType", "Filter Type",
+        juce::StringArray({ "Low Shelf", "High Shelf", "Bell", "Notch" }), 2
+    ));
+
+    return layout;
 }
 
 //==============================================================================

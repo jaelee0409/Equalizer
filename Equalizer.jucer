@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="tP2ja2" name="Equalizer" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" companyName="PEAKERS LLC">
   <MAINGROUP id="Ci8vuz" name="Equalizer">
     <GROUP id="{B821C5A9-72DC-3841-04CC-0AA3B19B5971}" name="Source">
       <FILE id="CJ2g3I" name="PluginProcessor.cpp" compile="1" resource="0"
@@ -32,7 +32,7 @@
   <EXPORTFORMATS>
     <VS2022 targetFolder="Builds/VisualStudio2022">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="Equalizer"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="Equalizer" enablePluginBinaryCopyStep="1"/>
         <CONFIGURATION isDebug="0" name="Release" targetName="Equalizer"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
