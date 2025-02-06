@@ -60,5 +60,11 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     //==============================================================================
+    using IIRFilter = juce::dsp::IIR::Filter<float>;
+    using BandFilter = juce::dsp::ProcessorChain<IIRFilter, IIRFilter, IIRFilter, IIRFilter>;
+    using ChannelEQ = juce::dsp::ProcessorChain<BandFilter, IIRFilter, BandFilter>;
+    ChannelEQ leftEQ, rightEQ;
+
+    //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqualizerAudioProcessor)
 };
