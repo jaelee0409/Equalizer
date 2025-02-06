@@ -10,6 +10,17 @@
 
 #include <JuceHeader.h>
 
+struct ChainSettings {
+    float peak1Frequency{ 500 }, peak1GainInDecibels{ 0 }, peak1Quality{ 1.0f };
+    float peak2Frequency{ 2000 }, peak2GainInDecibels{ 0 }, peak2Quality{ 1.0f };
+    float lowCutFrequency{ 80 }, highCutFrequency{ 12000 };
+    int lowCutSlope{ 1 }, highCutSlope{ 1 };
+    float outputGain{ 0 };
+    bool bypass{ false };
+};
+
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
+
 //==============================================================================
 /**
 */
@@ -62,8 +73,14 @@ private:
     //==============================================================================
     using IIRFilter = juce::dsp::IIR::Filter<float>;
     using BandFilter = juce::dsp::ProcessorChain<IIRFilter, IIRFilter, IIRFilter, IIRFilter>;
-    using ChannelEQ = juce::dsp::ProcessorChain<BandFilter, IIRFilter, BandFilter>;
+    using ChannelEQ = juce::dsp::ProcessorChain<BandFilter, IIRFilter, IIRFilter, BandFilter>;
     ChannelEQ leftEQ, rightEQ;
+    enum ChainPositions {
+        LowCut,
+        PeakBand1,
+        PeakBand2,
+        HighCut
+    };
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqualizerAudioProcessor)
