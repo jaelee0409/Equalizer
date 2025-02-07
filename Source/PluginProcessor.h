@@ -10,11 +10,32 @@
 
 #include <JuceHeader.h>
 
+//==============================================================================
+using IIRFilter = juce::dsp::IIR::Filter<float>;
+using BandFilter = juce::dsp::ProcessorChain<IIRFilter, IIRFilter, IIRFilter, IIRFilter>;
+using ChannelEQ = juce::dsp::ProcessorChain<BandFilter, IIRFilter, IIRFilter, BandFilter>;
+
+ChannelEQ leftEQ, rightEQ;
+
+enum ChainPositions {
+    LowCut,
+    PeakBand1,
+    PeakBand2,
+    HighCut
+};
+
+enum Slope {
+    Slope_12dB = 0,
+    Slope_24dB,
+    Slope_36dB,
+    Slope_48dB
+};
+
 struct ChainSettings {
     float peak1Frequency{ 500 }, peak1GainInDecibels{ 0 }, peak1Quality{ 1.0f };
     float peak2Frequency{ 2000 }, peak2GainInDecibels{ 0 }, peak2Quality{ 1.0f };
     float lowCutFrequency{ 80 }, highCutFrequency{ 12000 };
-    int lowCutSlope{ 1 }, highCutSlope{ 1 };
+    Slope lowCutSlope{ Slope_12dB }, highCutSlope{ Slope_12dB };
     float outputGain{ 0 };
     bool bypass{ false };
 };
@@ -69,18 +90,13 @@ public:
 private:
     //==============================================================================
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void updatePeakFilters();
+    void updateCutFilters();
 
-    //==============================================================================
-    using IIRFilter = juce::dsp::IIR::Filter<float>;
-    using BandFilter = juce::dsp::ProcessorChain<IIRFilter, IIRFilter, IIRFilter, IIRFilter>;
-    using ChannelEQ = juce::dsp::ProcessorChain<BandFilter, IIRFilter, IIRFilter, BandFilter>;
-    ChannelEQ leftEQ, rightEQ;
-    enum ChainPositions {
-        LowCut,
-        PeakBand1,
-        PeakBand2,
-        HighCut
-    };
+    void resetCutFilterBypass(BandFilter& filterChain);
+    void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, int slope);
+    template <int Stage>
+    void updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients);
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqualizerAudioProcessor)

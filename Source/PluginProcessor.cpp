@@ -20,9 +20,9 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts) {
     if (auto* param = apvts.getRawParameterValue("Peak2Q")) settings.peak2Quality = param->load();
 
     if (auto* param = apvts.getRawParameterValue("LowCutFreq")) settings.lowCutFrequency = param->load();
-    if (auto* param = apvts.getRawParameterValue("LowCutSlope")) settings.lowCutSlope = static_cast<int>(param->load());
+    if (auto* param = apvts.getRawParameterValue("LowCutSlope")) settings.lowCutSlope = static_cast<Slope>(param->load());
     if (auto* param = apvts.getRawParameterValue("HighCutFreq")) settings.highCutFrequency = param->load();
-    if (auto* param = apvts.getRawParameterValue("HighCutSlope")) settings.highCutSlope = static_cast<int>(param->load());
+    if (auto* param = apvts.getRawParameterValue("HighCutSlope")) settings.highCutSlope = static_cast<Slope>(param->load());
 
     if (auto* param = apvts.getRawParameterValue("OutputGain")) settings.outputGain = param->load();
     if (auto* param = apvts.getRawParameterValue("Bypass")) settings.bypass = static_cast<bool>(param->load());
@@ -127,21 +127,8 @@ void EqualizerAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     leftEQ.prepare(spec);
     rightEQ.prepare(spec);
 
-    auto chainSettings = getChainSettings(apvts);
-    auto peakCoefficients1 = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
-                                                                           chainSettings.peak1Frequency,
-                                                                           chainSettings.peak1Quality,
-                                                                           juce::Decibels::decibelsToGain(chainSettings.peak1GainInDecibels));
-    auto peakCoefficients2 = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
-        chainSettings.peak2Frequency,
-        chainSettings.peak2Quality,
-        juce::Decibels::decibelsToGain(chainSettings.peak2GainInDecibels));
-
-    *leftEQ.get<ChainPositions::PeakBand1>().coefficients = *peakCoefficients1;
-    *rightEQ.get<ChainPositions::PeakBand1>().coefficients = *peakCoefficients1;
-
-    *leftEQ.get<ChainPositions::PeakBand2>().coefficients = *peakCoefficients2;
-    *rightEQ.get<ChainPositions::PeakBand2>().coefficients = *peakCoefficients2;
+    updatePeakFilters();
+    updateCutFilters();
 }
 
 void EqualizerAudioProcessor::releaseResources()
@@ -178,9 +165,9 @@ bool EqualizerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts
 
 void EqualizerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    const juce::ScopedNoDenormals noDenormals;
+    const auto totalNumInputChannels = getTotalNumInputChannels();
+    const auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -191,25 +178,11 @@ void EqualizerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     for (auto channel = totalNumInputChannels; channel < totalNumOutputChannels; ++channel)
         buffer.clear (channel, 0, buffer.getNumSamples());
 
+    // Replace this later
+    updatePeakFilters();
+    updateCutFilters();
 
-    auto chainSettings = getChainSettings(apvts);
-    auto peakCoefficients1 = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
-        chainSettings.peak1Frequency,
-        chainSettings.peak1Quality,
-        juce::Decibels::decibelsToGain(chainSettings.peak1GainInDecibels));
-    auto peakCoefficients2 = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
-        chainSettings.peak2Frequency,
-        chainSettings.peak2Quality,
-        juce::Decibels::decibelsToGain(chainSettings.peak2GainInDecibels));
-
-    *leftEQ.get<ChainPositions::PeakBand1>().coefficients = *peakCoefficients1;
-    *rightEQ.get<ChainPositions::PeakBand1>().coefficients = *peakCoefficients1;
-
-    *leftEQ.get<ChainPositions::PeakBand2>().coefficients = *peakCoefficients2;
-    *rightEQ.get<ChainPositions::PeakBand2>().coefficients = *peakCoefficients2;
-
-
-    juce::dsp::AudioBlock<float> audioBlock(buffer);
+    const juce::dsp::AudioBlock<float> audioBlock(buffer);
     auto leftChannelBlock = audioBlock.getSingleChannelBlock(0);
     auto rightChannelBlock = audioBlock.getSingleChannelBlock(1);
 
@@ -252,7 +225,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
     // Peak Filters (Bell Curve)
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "Peak1Freq", "Peak 1 Frequency",
-        juce::NormalisableRange<float>(100.0f, 10000.0f, 0.1f, 0.5f), 500.0f,
+        juce::NormalisableRange<float>(500.0f, 5000.0f, 0.1f, 0.5f), 500.0f,
         "Hz",
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + " Hz"; }
@@ -268,12 +241,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "Peak1Q", "Peak 1 Quality",
-        juce::NormalisableRange<float>(0.5f, 5.0f, 0.05f, 1.0f), 1.0f
+        juce::NormalisableRange<float>(0.5f, 5.0f, 0.05f, 1.0f), 0.5f
     ));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "Peak2Freq", "Peak 2 Frequency",
-        juce::NormalisableRange<float>(200.0f, 8000.0f, 0.1f, 0.5f), 2000.0f,
+        juce::NormalisableRange<float>(5000.0f, 10000.0f, 0.1f, 0.5f), 5000.0f,
         "Hz",
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + " Hz"; }
@@ -289,14 +262,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "Peak2Q", "Peak 2 Quality",
-        juce::NormalisableRange<float>(0.5f, 5.0f, 0.05f, 1.0f), 1.0f
+        juce::NormalisableRange<float>(0.5f, 5.0f, 0.05f, 1.0f), 0.5f
     ));
 
     // Low Cut (High-Pass Filter)
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "LowCutFreq",
         "Low Cut Frequency",
-        juce::NormalisableRange<float>(20.0f, 500.0f, 0.1f, 0.5f), 80.0f,
+        juce::NormalisableRange<float>(20.0f, 500.0f, 0.1f, 0.5f), 20.0f,
         "Hz",
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + " Hz"; }
@@ -304,13 +277,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         "LowCutSlope", "Low Cut Slope",
-        juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 1
+        juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 0
     ));
 
     // High Cut (Low-Pass Filter)
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "HighCutFreq", "High Cut Frequency",
-        juce::NormalisableRange<float>(2000.0f, 20000.0f, 0.1f, 0.5f), 12000.0f,
+        juce::NormalisableRange<float>(2000.0f, 20000.0f, 0.1f, 0.5f), 20000.0f,
         "Hz",
         juce::AudioProcessorParameter::genericParameter,
         [](float value, int) { return juce::String(value, 1) + " Hz"; }
@@ -318,7 +291,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         "HighCutSlope", "High Cut Slope",
-        juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 1
+        juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 0
     ));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -339,6 +312,87 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
     ));
 
     return layout;
+}
+
+void EqualizerAudioProcessor::updatePeakFilters() {
+    const auto chainSettings = getChainSettings(apvts);
+    const double sampleRate = getSampleRate();
+
+    const auto peak1Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak1Frequency,
+        chainSettings.peak1Quality, juce::Decibels::decibelsToGain(chainSettings.peak1GainInDecibels));
+
+    const auto peak2Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak2Frequency,
+        chainSettings.peak2Quality, juce::Decibels::decibelsToGain(chainSettings.peak2GainInDecibels));
+
+    *leftEQ.get<ChainPositions::PeakBand1>().coefficients = *peak1Coefficients;
+    *rightEQ.get<ChainPositions::PeakBand1>().coefficients = *peak1Coefficients;
+
+    *leftEQ.get<ChainPositions::PeakBand2>().coefficients = *peak2Coefficients;
+    *rightEQ.get<ChainPositions::PeakBand2>().coefficients = *peak2Coefficients;
+}
+
+void EqualizerAudioProcessor::updateCutFilters() {
+    const auto chainSettings = getChainSettings(apvts);
+    const double sampleRate = getSampleRate();
+
+    const auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+        chainSettings.lowCutFrequency, sampleRate, (chainSettings.lowCutSlope + 1) * 2);
+    const auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+        chainSettings.highCutFrequency, sampleRate, (chainSettings.highCutSlope + 1) * 2);
+
+    // Reset bypass state for all filters
+    resetCutFilterBypass(leftEQ.get<ChainPositions::LowCut>());
+    resetCutFilterBypass(rightEQ.get<ChainPositions::LowCut>());
+    resetCutFilterBypass(leftEQ.get<ChainPositions::HighCut>());
+    resetCutFilterBypass(rightEQ.get<ChainPositions::HighCut>());
+
+    // Apply coefficients to low-cut and high-cut filters
+    applyCutFilterCoefficients(leftEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
+    applyCutFilterCoefficients(rightEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
+    applyCutFilterCoefficients(leftEQ.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
+    applyCutFilterCoefficients(rightEQ.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
+}
+
+// Helper function to reset bypass state for a filter chain
+void EqualizerAudioProcessor::resetCutFilterBypass(BandFilter& filterChain) {
+    filterChain.template setBypassed<0>(true);
+    filterChain.template setBypassed<1>(true);
+    filterChain.template setBypassed<2>(true);
+    filterChain.template setBypassed<3>(true);
+}
+
+// Helper function to apply coefficients to a filter chain
+void EqualizerAudioProcessor::applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, int slope) {
+    switch (slope) {
+        case Slope_12dB:
+            updateCutFilterStage<0>(filterChain, coefficients[0]);
+            break;
+        case Slope_24dB:
+            updateCutFilterStage<0>(filterChain, coefficients[0]);
+            updateCutFilterStage<1>(filterChain, coefficients[1]);
+            break;
+        case Slope_36dB:
+            updateCutFilterStage<0>(filterChain, coefficients[0]);
+            updateCutFilterStage<1>(filterChain, coefficients[1]);
+            updateCutFilterStage<2>(filterChain, coefficients[2]);
+            break;
+        case Slope_48dB:
+            updateCutFilterStage<0>(filterChain, coefficients[0]);
+            updateCutFilterStage<1>(filterChain, coefficients[1]);
+            updateCutFilterStage<2>(filterChain, coefficients[2]);
+            updateCutFilterStage<3>(filterChain, coefficients[3]);
+            break;
+        default:
+            jassertfalse; // Invalid slope value
+            break;
+    }
+}
+
+// Helper function to update a single filter stage
+template <int Stage>
+void EqualizerAudioProcessor::updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients) {
+    filterChain.template get<Stage>().coefficients = coefficients;
+    filterChain.template setBypassed<Stage>(false);
 }
 
 //==============================================================================
