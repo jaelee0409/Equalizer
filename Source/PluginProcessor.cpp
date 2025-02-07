@@ -127,8 +127,7 @@ void EqualizerAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     leftEQ.prepare(spec);
     rightEQ.prepare(spec);
 
-    updatePeakFilters();
-    updateCutFilters();
+    updateFilters();
 }
 
 void EqualizerAudioProcessor::releaseResources()
@@ -178,9 +177,7 @@ void EqualizerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     for (auto channel = totalNumInputChannels; channel < totalNumOutputChannels; ++channel)
         buffer.clear (channel, 0, buffer.getNumSamples());
 
-    // Replace this later
-    updatePeakFilters();
-    updateCutFilters();
+    updateFilters();
 
     const juce::dsp::AudioBlock<float> audioBlock(buffer);
     auto leftChannelBlock = audioBlock.getSingleChannelBlock(0);
@@ -222,7 +219,7 @@ void EqualizerAudioProcessor::setStateInformation (const void* data, int sizeInB
 juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::createParameterLayout() {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // Peak Filters (Bell Curve)
+    // Peak Filters
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "Peak1Freq", "Peak 1 Frequency",
         juce::NormalisableRange<float>(500.0f, 5000.0f, 0.1f, 0.5f), 500.0f,
@@ -294,6 +291,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
         juce::StringArray({ "12 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct" }), 0
     ));
 
+    // Output Gain
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "OutputGain", "Output Gain",
         juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f, 1.0f), 0.0f,
@@ -314,8 +312,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
     return layout;
 }
 
-void EqualizerAudioProcessor::updatePeakFilters() {
-    const auto chainSettings = getChainSettings(apvts);
+void EqualizerAudioProcessor::updateFilters() {
+    auto chainSettings = getChainSettings(apvts);
+
+    updatePeakFilters(chainSettings);
+    updateCutFilters(chainSettings);
+}
+
+void EqualizerAudioProcessor::updatePeakFilters(const ChainSettings& chainSettings) {
     const double sampleRate = getSampleRate();
 
     const auto peak1Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak1Frequency,
@@ -331,29 +335,24 @@ void EqualizerAudioProcessor::updatePeakFilters() {
     *rightEQ.get<ChainPositions::PeakBand2>().coefficients = *peak2Coefficients;
 }
 
-void EqualizerAudioProcessor::updateCutFilters() {
-    const auto chainSettings = getChainSettings(apvts);
+void EqualizerAudioProcessor::updateCutFilters(const ChainSettings& chainSettings) {
     const double sampleRate = getSampleRate();
 
     const auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
         chainSettings.lowCutFrequency, sampleRate, (chainSettings.lowCutSlope + 1) * 2);
-    const auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
-        chainSettings.highCutFrequency, sampleRate, (chainSettings.highCutSlope + 1) * 2);
-
-    // Reset bypass state for all filters
     resetCutFilterBypass(leftEQ.get<ChainPositions::LowCut>());
     resetCutFilterBypass(rightEQ.get<ChainPositions::LowCut>());
-    resetCutFilterBypass(leftEQ.get<ChainPositions::HighCut>());
-    resetCutFilterBypass(rightEQ.get<ChainPositions::HighCut>());
-
-    // Apply coefficients to low-cut and high-cut filters
     applyCutFilterCoefficients(leftEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
     applyCutFilterCoefficients(rightEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
+
+    const auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+        chainSettings.highCutFrequency, sampleRate, (chainSettings.highCutSlope + 1) * 2);
+    resetCutFilterBypass(leftEQ.get<ChainPositions::HighCut>());
+    resetCutFilterBypass(rightEQ.get<ChainPositions::HighCut>());
     applyCutFilterCoefficients(leftEQ.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
     applyCutFilterCoefficients(rightEQ.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
 }
 
-// Helper function to reset bypass state for a filter chain
 void EqualizerAudioProcessor::resetCutFilterBypass(BandFilter& filterChain) {
     filterChain.template setBypassed<0>(true);
     filterChain.template setBypassed<1>(true);
@@ -361,26 +360,16 @@ void EqualizerAudioProcessor::resetCutFilterBypass(BandFilter& filterChain) {
     filterChain.template setBypassed<3>(true);
 }
 
-// Helper function to apply coefficients to a filter chain
-void EqualizerAudioProcessor::applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, int slope) {
+void EqualizerAudioProcessor::applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope) {
     switch (slope) {
+        case Slope_48dB:
+            updateCutFilterStage<3>(filterChain, coefficients[3]);
+        case Slope_36dB:
+            updateCutFilterStage<2>(filterChain, coefficients[2]);
+        case Slope_24dB:
+            updateCutFilterStage<1>(filterChain, coefficients[1]);
         case Slope_12dB:
             updateCutFilterStage<0>(filterChain, coefficients[0]);
-            break;
-        case Slope_24dB:
-            updateCutFilterStage<0>(filterChain, coefficients[0]);
-            updateCutFilterStage<1>(filterChain, coefficients[1]);
-            break;
-        case Slope_36dB:
-            updateCutFilterStage<0>(filterChain, coefficients[0]);
-            updateCutFilterStage<1>(filterChain, coefficients[1]);
-            updateCutFilterStage<2>(filterChain, coefficients[2]);
-            break;
-        case Slope_48dB:
-            updateCutFilterStage<0>(filterChain, coefficients[0]);
-            updateCutFilterStage<1>(filterChain, coefficients[1]);
-            updateCutFilterStage<2>(filterChain, coefficients[2]);
-            updateCutFilterStage<3>(filterChain, coefficients[3]);
             break;
         default:
             jassertfalse; // Invalid slope value
@@ -388,7 +377,6 @@ void EqualizerAudioProcessor::applyCutFilterCoefficients(BandFilter& filterChain
     }
 }
 
-// Helper function to update a single filter stage
 template <int Stage>
 void EqualizerAudioProcessor::updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients) {
     filterChain.template get<Stage>().coefficients = coefficients;

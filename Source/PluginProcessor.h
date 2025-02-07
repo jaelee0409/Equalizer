@@ -90,11 +90,12 @@ public:
 private:
     //==============================================================================
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    void updatePeakFilters();
-    void updateCutFilters();
+    void updateFilters();
+    void updatePeakFilters(const ChainSettings& chainSettings);
+    void updateCutFilters(const ChainSettings& chainSettings);
 
     void resetCutFilterBypass(BandFilter& filterChain);
-    void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, int slope);
+    void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope);
     template <int Stage>
     void updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients);
 
