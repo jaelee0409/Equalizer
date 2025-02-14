@@ -62,10 +62,10 @@
     </LAYOUT>
   </FILTER>
   <FILTER uid="5" x="0.70875" y="0.2701612903225806" useARA="0" uiLastX_Normal="371"
-          uiLastY_Normal="251" uiopen_Normal="0">
+          uiLastY_Normal="251" uiopen_Normal="1">
     <PLUGIN name="AudioFilePlayer" format="VST3" category="Fx" manufacturer="Matkat Music LLC"
             version="1.0.0" file="C:\Program Files\Common Files\VST3\AudioFilePlayer.vst3"
-            uniqueId="79fe81c" isInstrument="0" fileTime="194d59eb8a8" infoUpdateTime="194d5a7bc7d"
+            uniqueId="79fe81c" isInstrument="0" fileTime="194d59eb8a8" infoUpdateTime="1950265a6f9"
             numInputs="2" numOutputs="2" isShell="0" hasARAExtension="0"
             uid="e95d02c7"/>
     <STATE>292.VMjLgrQ....O+fWarAhckI2bo8la8HRLt.iHfTlai8FYo41Y8HRUTYTK3HxO9.BOVMEUy.Ea0cVZtMEcgQWY9vSRC8Vav8lak4Fc9DyL03BTIISX1UEaho2ZVkUdAAkKAwDUigWRWkEcQ0VTucmUY4BQ1sTQLolShUELhsVRxHlXuYEVqcmUYIFLTMVdqECVhcGUXQWUFgzLtH0RlwTQi8VRGgTSUYDRUETaKw1cVgUZA4hKt3hKt3hKt3hKtXlTU0DUQAURWoULEYzXqEEUXoWQF4RPDYFTzDzUXkWSG4RPDYmKtnWPt3hKt3hKt3hKJUELPUTPqI1aYcEV5UkQQcVTWgEOujzPu0Fbu4VYtQmO77hUSQ0LPwVcmklaSQWXzUlO..</STATE>
@@ -78,13 +78,14 @@
       </OUTPUTS>
     </LAYOUT>
   </FILTER>
-  <FILTER uid="6" x="0.5525" y="0.6189516129032258" useARA="0">
+  <FILTER uid="6" x="0.5525" y="0.6189516129032258" useARA="0" uiLastX_Normal="989"
+          uiLastY_Normal="354" uiopen_Normal="0">
     <PLUGIN name="Equalizer" format="VST3" category="Fx" manufacturer="PEAKERS LLC"
             version="1.0.0" file="C:\Program Files\Common Files\VST3\Equalizer.vst3\Contents\x86_64-win\Equalizer.vst3"
-            uniqueId="1a4a41f" isInstrument="0" fileTime="194d56a14dc" infoUpdateTime="194d5a7bc7d"
+            uniqueId="1a4a41f" isInstrument="0" fileTime="1950263fbfa" infoUpdateTime="1950265a6fa"
             numInputs="2" numOutputs="2" isShell="0" hasARAExtension="0"
             uid="e95a5319"/>
-    <STATE>191.VMjLgXK....O+fWarAhckI2bo8la8HRLt.iHfTlai8FYo41Y8HRUTYTK3HxO9.BOVMEUy.Ea0cVZtMEcgQWY9vSRC8Vav8lak4Fc9XCLt3hKt3hKt3hKt3hYRUUSTEETIckVwTjQisVTTgkdEYjKAQjYPQSPWgUdMcjKAQjct3hdA4hKt3hKt3hKtnTUv.UQAslXuk0UXoWUFE0YQcEV77RRC8Vav8lak4Fc9vyKVMEUy.Ea0cVZtMEcgQWY9..</STATE>
+    <STATE>940.VMjLgL5....O+fWarAhckI2bo8la8HRLt.iHfTlai8FYo41Y8HRUTYTK3HxO9.BOVMEUy.Ea0cVZtMEcgQWY9vSRC8Vav8lak4Fc9XiLw3BTEwlXmAiUYoWUrIVdA4hKAomKTETRUAUSAAkKBolQY4BQtHTQHQEY1UTLhkWPlM1Y2Y0XqEDTtjDTt3hKt3hKt3hKt3hKtPUPIUETMEDTtHjZFkkKD4xPEgEUZIWTWkEdQUEY1UkQtDSQFEFLUYjKAolKA4hKt3hKt3hKt3BQt.UQpQUPvPjKAgDTZoVPP4RST4hTuMlQZMTUGMlQIcUV2EjYic1cVM1ZAAkKIAkKt3hKt3VVnQDctDjKTETRUAUSAAkKBolQY4BQlMTQlQkVscVLPASTxPkb3XjXqEjYic1cVM1ZAAkKIAkKt3hKt3hKt3hPtDjKTETRUAUSAAkKBolQY4BQtLTQ1oWXxzDUioWVpI1ZEcjKwTjQgASUF4RPp4RPt3hKt3RS4IlSAQjKPUjZTEDLD4RPHAkVpEDTtzDUtLUciICTvDkLTIGNFI1ZAY1XmcmUisVPP4RRP4hKt3hKt3hKtHjKA4BUAkTUP0TPP4hPpYTVtPjKCUzMTMldAc0X5MFUX8FMF4RLEYTXvTkQtDjZtDjKt3hKt3hKt3hKt3BTEoFUAACQtDDRPokZAAkKKQkKTsVQwn0cXolXqUzQtDSQFEFLUYjKAolKA4hKt3hYrkkTqDDQt.UQpQUPvPjKAgDTZoVPP4xRT4BUqUTLZcmXTg0azXjKwTjQgASUF4RPp4RPt3hKt3hKt3BdtvjKPUjZTEDLD4RPHAkVpEDTtfDUtP0ZEEiV2QTQtDSQFEFLUYjKAolKA4hKt3hKt3hKlsxPt.UQpQUPvPjKAgDTZoVPP4xRT4BUqUTLZgGVpI1ZEcjKwTjQgASUF4RPp4RPt3hKt3hKtfVdBQjKPUjZTEDLD4RPHAkVpEDTtrDUtP0ZEEiV3IFUX8FMF4RLEYTXvTkQtDjZtDjKt3hKtzTdLMkKL4BTEoFUAACQtDDRPokZAAkKHQkKTsVQwnEdDUjKwTjQgASUF4RPp4RPt3hKt3hKt3hYqLjKt3hKt3hKt3hKtXlTU0DUQAURWoULEYzXqEEUXoWQF4RPDYFTzDzUXkWSG4RPDYmKtnWPt3hKt3hKt3hKJUELPUTPqI1aYcEV5UkQQcVTWgEOujzPu0Fbu4VYtQmO77hUSQ0LPwVcmklaSQWXzUlO..</STATE>
     <LAYOUT>
       <INPUTS>
         <BUS index="0" layout="L R"/>

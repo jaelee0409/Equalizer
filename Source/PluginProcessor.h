@@ -15,8 +15,6 @@ using IIRFilter = juce::dsp::IIR::Filter<float>;
 using BandFilter = juce::dsp::ProcessorChain<IIRFilter, IIRFilter, IIRFilter, IIRFilter>;
 using ChannelEQ = juce::dsp::ProcessorChain<BandFilter, IIRFilter, IIRFilter, BandFilter>;
 
-ChannelEQ leftEQ, rightEQ;
-
 enum ChainPositions {
     LowCut,
     PeakBand1,
@@ -98,6 +96,8 @@ private:
     void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope);
     template <int Stage>
     void updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients);
+
+    ChannelEQ leftEQ, rightEQ;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqualizerAudioProcessor)
