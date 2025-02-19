@@ -21,7 +21,8 @@ class CustomRotarySlider : public juce::Slider {
 //==============================================================================
 /**
 */
-class EqualizerAudioProcessorEditor  : public juce::AudioProcessorEditor
+class EqualizerAudioProcessorEditor  : public juce::AudioProcessorEditor,
+    juce::AudioProcessorParameter::Listener, juce::Timer
 {
 public:
     EqualizerAudioProcessorEditor (EqualizerAudioProcessor&);
@@ -30,6 +31,11 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
+
+    void parameterValueChanged(int parameterIndex, float newValue) override;
+    void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override {};
+
+    void timerCallback() override;
 
 private:
     // This reference is provided as a quick way for your editor to
@@ -57,6 +63,10 @@ private:
     juce::Label peak1FrequencyLabel;
     juce::Label peak1GainLabel;
     juce::Label peak1QualityLabel;
+
+    ChannelEQ channelEQ;
+
+    juce::Atomic<bool> parametersChanged;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqualizerAudioProcessorEditor)
 };

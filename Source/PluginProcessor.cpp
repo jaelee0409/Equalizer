@@ -12,20 +12,32 @@
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts) {
     ChainSettings settings;
 
-    if (auto* param = apvts.getRawParameterValue("Peak1Freq")) settings.peak1Frequency = param->load();
-    if (auto* param = apvts.getRawParameterValue("Peak1Gain")) settings.peak1GainInDecibels = param->load();
-    if (auto* param = apvts.getRawParameterValue("Peak1Q")) settings.peak1Quality = param->load();
-    if (auto* param = apvts.getRawParameterValue("Peak2Freq")) settings.peak2Frequency = param->load();
-    if (auto* param = apvts.getRawParameterValue("Peak2Gain")) settings.peak2GainInDecibels = param->load();
-    if (auto* param = apvts.getRawParameterValue("Peak2Q")) settings.peak2Quality = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Peak1Freq"))
+        settings.peak1Frequency = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Peak1Gain"))
+        settings.peak1GainInDecibels = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Peak1Q"))
+        settings.peak1Quality = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Peak2Freq"))
+        settings.peak2Frequency = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Peak2Gain"))
+        settings.peak2GainInDecibels = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Peak2Q"))
+        settings.peak2Quality = param->load();
 
-    if (auto* param = apvts.getRawParameterValue("LowCutFreq")) settings.lowCutFrequency = param->load();
-    if (auto* param = apvts.getRawParameterValue("LowCutSlope")) settings.lowCutSlope = static_cast<Slope>(param->load());
-    if (auto* param = apvts.getRawParameterValue("HighCutFreq")) settings.highCutFrequency = param->load();
-    if (auto* param = apvts.getRawParameterValue("HighCutSlope")) settings.highCutSlope = static_cast<Slope>(param->load());
+    if (std::atomic<float>* param = apvts.getRawParameterValue("LowCutFreq"))
+        settings.lowCutFrequency = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("LowCutSlope"))
+        settings.lowCutSlope = static_cast<Slope>(param->load());
+    if (std::atomic<float>* param = apvts.getRawParameterValue("HighCutFreq"))
+        settings.highCutFrequency = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("HighCutSlope"))
+        settings.highCutSlope = static_cast<Slope>(param->load());
 
-    if (auto* param = apvts.getRawParameterValue("OutputGain")) settings.outputGain = param->load();
-    if (auto* param = apvts.getRawParameterValue("Bypass")) settings.bypass = static_cast<bool>(param->load());
+    if (std::atomic<float>* param = apvts.getRawParameterValue("OutputGain"))
+        settings.outputGain = param->load();
+    if (std::atomic<float>* param = apvts.getRawParameterValue("Bypass"))
+        settings.bypass = static_cast<bool>(param->load());
 
     return settings;
 }
@@ -165,8 +177,8 @@ bool EqualizerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts
 void EqualizerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     const juce::ScopedNoDenormals noDenormals;
-    const auto totalNumInputChannels = getTotalNumInputChannels();
-    const auto totalNumOutputChannels = getTotalNumOutputChannels();
+    const int totalNumInputChannels = getTotalNumInputChannels();
+    const int totalNumOutputChannels = getTotalNumOutputChannels();
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -174,14 +186,14 @@ void EqualizerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     // This is here to avoid people getting screaming feedback
     // when they first compile a plugin, but obviously you don't need to keep
     // this code if your algorithm always overwrites all the output channels.
-    for (auto channel = totalNumInputChannels; channel < totalNumOutputChannels; ++channel)
-        buffer.clear (channel, 0, buffer.getNumSamples());
+    for (int channel = totalNumInputChannels; channel < totalNumOutputChannels; ++channel)
+        buffer.clear(channel, 0, buffer.getNumSamples());
 
     updateFilters();
 
     const juce::dsp::AudioBlock<float> audioBlock(buffer);
-    auto leftChannelBlock = audioBlock.getSingleChannelBlock(0);
-    auto rightChannelBlock = audioBlock.getSingleChannelBlock(1);
+    juce::dsp::AudioBlock<float> leftChannelBlock = audioBlock.getSingleChannelBlock(0);
+    juce::dsp::AudioBlock<float> rightChannelBlock = audioBlock.getSingleChannelBlock(1);
 
     juce::dsp::ProcessContextReplacing<float> leftChannelContext(leftChannelBlock);
     juce::dsp::ProcessContextReplacing<float> rightChannelContext(rightChannelBlock);
@@ -218,7 +230,7 @@ void EqualizerAudioProcessor::setStateInformation (const void* data, int sizeInB
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
 
-    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    juce::ValueTree tree = juce::ValueTree::readFromData(data, sizeInBytes);
     if (tree.isValid()) {
         apvts.replaceState(tree);
         updateFilters();
@@ -322,20 +334,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout EqualizerAudioProcessor::cre
 }
 
 void EqualizerAudioProcessor::updateFilters() {
-    auto chainSettings = getChainSettings(apvts);
+    const ChainSettings chainSettings = getChainSettings(apvts);
 
     updatePeakFilters(chainSettings);
     updateCutFilters(chainSettings);
 }
 
-void EqualizerAudioProcessor::updatePeakFilters(const ChainSettings& chainSettings) {
-    const double sampleRate = getSampleRate();
+std::pair<juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>,
+          juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>>
+    makePeakFilters(const ChainSettings& chainSettings, double sampleRate) {
 
-    const auto peak1Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak1Frequency,
+    juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>> peak1Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak1Frequency,
         chainSettings.peak1Quality, juce::Decibels::decibelsToGain(chainSettings.peak1GainInDecibels));
 
-    const auto peak2Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak2Frequency,
+    juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>> peak2Coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peak2Frequency,
         chainSettings.peak2Quality, juce::Decibels::decibelsToGain(chainSettings.peak2GainInDecibels));
+
+	return { peak1Coefficients, peak2Coefficients };
+}
+
+void EqualizerAudioProcessor::updatePeakFilters(const ChainSettings& chainSettings) {
+    auto [peak1Coefficients, peak2Coefficients] = makePeakFilters(chainSettings, getSampleRate());
 
     *leftEQ.get<ChainPositions::PeakBand1>().coefficients = *peak1Coefficients;
     *rightEQ.get<ChainPositions::PeakBand1>().coefficients = *peak1Coefficients;
@@ -347,14 +366,14 @@ void EqualizerAudioProcessor::updatePeakFilters(const ChainSettings& chainSettin
 void EqualizerAudioProcessor::updateCutFilters(const ChainSettings& chainSettings) {
     const double sampleRate = getSampleRate();
 
-    const auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+    const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>> lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
         chainSettings.lowCutFrequency, sampleRate, (chainSettings.lowCutSlope + 1) * 2);
     resetCutFilterBypass(leftEQ.get<ChainPositions::LowCut>());
     resetCutFilterBypass(rightEQ.get<ChainPositions::LowCut>());
     applyCutFilterCoefficients(leftEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
     applyCutFilterCoefficients(rightEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
 
-    const auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+    const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>> highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
         chainSettings.highCutFrequency, sampleRate, (chainSettings.highCutSlope + 1) * 2);
     resetCutFilterBypass(leftEQ.get<ChainPositions::HighCut>());
     resetCutFilterBypass(rightEQ.get<ChainPositions::HighCut>());

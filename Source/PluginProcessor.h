@@ -40,6 +40,10 @@ struct ChainSettings {
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
 
+std::pair<juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>,
+    juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>>
+    makePeakFilters(const ChainSettings& chainSettings, double sampleRate);
+
 //==============================================================================
 /**
 */
@@ -83,11 +87,16 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    
+
     //==============================================================================
     juce::AudioProcessorValueTreeState apvts;
 private:
     //==============================================================================
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    
+    
+    
     void updateFilters();
     void updatePeakFilters(const ChainSettings& chainSettings);
     void updateCutFilters(const ChainSettings& chainSettings);
