@@ -9,72 +9,53 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-//==============================================================================
-EqualizerAudioProcessorEditor::EqualizerAudioProcessorEditor(EqualizerAudioProcessor& p)
-    : AudioProcessorEditor(&p), audioProcessor(p),
-    peak1FrequencySliderAttachment(audioProcessor.apvts, "Peak1Freq", peak1FrequencySlider),
-    peak1GainSliderAttachment(audioProcessor.apvts, "Peak1Gain", peak1GainSlider),
-    peak1QualitySliderAttachment(audioProcessor.apvts, "Peak1Q", peak1QualitySlider),
-    peak2FrequencySliderAttachment(audioProcessor.apvts, "Peak2Freq", peak2FrequencySlider),
-    peak2GainSliderAttachment(audioProcessor.apvts, "Peak2Gain", peak2GainSlider),
-    peak2QualitySliderAttachment(audioProcessor.apvts, "Peak2Q", peak2QualitySlider),
-    lowCutFrequencySliderAttachment(audioProcessor.apvts, "LowCutFreq", lowCutFrequencySlider),
-    highCutFrequencySliderAttachment(audioProcessor.apvts, "HighCutFreq", highCutFrequencySlider),
-    parametersChanged(false)
-{
-    addAndMakeVisible(&peak1FrequencySlider);
-    addAndMakeVisible(&peak1GainSlider);
-    addAndMakeVisible(&peak1QualitySlider);
-    addAndMakeVisible(&peak2FrequencySlider);
-    addAndMakeVisible(&peak2GainSlider);
-    addAndMakeVisible(&peak2QualitySlider);
-    addAndMakeVisible(&lowCutFrequencySlider);
-    addAndMakeVisible(&highCutFrequencySlider);
+ResponseCurveComponent::ResponseCurveComponent(EqualizerAudioProcessor& p) : audioProcessor(p) {
+    const auto& params = audioProcessor.getParameters();
+    for (auto param : params)
+        param->addListener(this);
 
-    addAndMakeVisible(peak1FrequencyLabel);
-    peak1FrequencyLabel.setText("Peak 1 Frequency", juce::dontSendNotification);
-    peak1FrequencyLabel.attachToComponent(&peak1FrequencySlider, false);
-
-    addAndMakeVisible(peak1GainLabel);
-    peak1GainLabel.setText("Peak 1 Gain", juce::dontSendNotification);
-    peak1GainLabel.attachToComponent(&peak1GainSlider, false);
-
-    addAndMakeVisible(peak1QualityLabel);
-    peak1QualityLabel.setText("Peak 1 Quality", juce::dontSendNotification);
-    peak1QualityLabel.attachToComponent(&peak1QualitySlider, false);
-
-	const auto& params = audioProcessor.getParameters();
-	for (auto param : params)
-		param->addListener(this);
-
-	startTimerHz(60);
-
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    setSize(1200, 1000);
+    startTimerHz(60);
 }
 
-EqualizerAudioProcessorEditor::~EqualizerAudioProcessorEditor()
-{
-	 auto& params = audioProcessor.getParameters();
-	for (auto param : params) {
-		param->removeListener(this);
-	}
+ResponseCurveComponent::~ResponseCurveComponent() {
+    auto& params = audioProcessor.getParameters();
+    for (auto param : params) {
+        param->removeListener(this);
+    }
 }
 
-//==============================================================================
-void EqualizerAudioProcessorEditor::paint (juce::Graphics& g)
+void ResponseCurveComponent::parameterValueChanged(int parameterIndex, float newValue) {
+    parametersChanged.set(true);
+
+}
+
+void ResponseCurveComponent::timerCallback() {
+    if (parametersChanged.compareAndSetBool(false, true)) {
+        const ChainSettings& chainSettings = getChainSettings(audioProcessor.apvts);
+
+        auto [peak1Coefficients, peak2Coefficients] = makePeakFilters(chainSettings, audioProcessor.getSampleRate());
+        channelEQ.get<ChainPositions::PeakBand1>().coefficients = *peak1Coefficients;
+        channelEQ.get<ChainPositions::PeakBand2>().coefficients = *peak2Coefficients;
+
+        auto lowCutCoefficients = makeLowCutFilter(chainSettings, audioProcessor.getSampleRate());
+        auto highCutCoefficients = makeHighCutFilter(chainSettings, audioProcessor.getSampleRate());
+        applyCutFilterCoefficients(channelEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
+        applyCutFilterCoefficients(channelEQ.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
+
+        repaint();
+    }
+}
+
+void ResponseCurveComponent::paint(juce::Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     //g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
     g.fillAll(juce::Colour::fromRGBA(86, 91, 90, 255));
 
-    juce::Rectangle<int> bounds = getLocalBounds();
-    juce::Rectangle<int> topArea = bounds.removeFromTop(bounds.getHeight() * 0.33f);
-    juce::Rectangle<int> responseArea = topArea.removeFromRight(topArea.getWidth() * 0.9f);
+    juce::Rectangle<int> responseArea = getLocalBounds();
 
     int width = responseArea.getWidth();
-    
+
     IIRFilter& peak1 = channelEQ.get<ChainPositions::PeakBand1>();
     IIRFilter& peak2 = channelEQ.get<ChainPositions::PeakBand2>();
     BandFilter& lowCut = channelEQ.get<ChainPositions::LowCut>();
@@ -129,7 +110,7 @@ void EqualizerAudioProcessorEditor::paint (juce::Graphics& g)
     const double outputMax = responseArea.getY();
     auto map = [outputMin, outputMax](double input) {
         return juce::jmap<double>(input, -18.0, 18.0, outputMin, outputMax);
-    };
+        };
 
     responseCurve.startNewSubPath(responseArea.getX(), map(magnitudes.front()));
     for (int i = 0; i < magnitudes.size(); ++i) {
@@ -143,6 +124,58 @@ void EqualizerAudioProcessorEditor::paint (juce::Graphics& g)
     g.strokePath(responseCurve, juce::PathStrokeType(1.f));
 }
 
+//==============================================================================
+EqualizerAudioProcessorEditor::EqualizerAudioProcessorEditor(EqualizerAudioProcessor& p)
+    : AudioProcessorEditor(&p), audioProcessor(p),
+    responseCurveComponent(audioProcessor),
+    peak1FrequencySliderAttachment(audioProcessor.apvts, "Peak1Freq", peak1FrequencySlider),
+    peak1GainSliderAttachment(audioProcessor.apvts, "Peak1Gain", peak1GainSlider),
+    peak1QualitySliderAttachment(audioProcessor.apvts, "Peak1Q", peak1QualitySlider),
+    peak2FrequencySliderAttachment(audioProcessor.apvts, "Peak2Freq", peak2FrequencySlider),
+    peak2GainSliderAttachment(audioProcessor.apvts, "Peak2Gain", peak2GainSlider),
+    peak2QualitySliderAttachment(audioProcessor.apvts, "Peak2Q", peak2QualitySlider),
+    lowCutFrequencySliderAttachment(audioProcessor.apvts, "LowCutFreq", lowCutFrequencySlider),
+    highCutFrequencySliderAttachment(audioProcessor.apvts, "HighCutFreq", highCutFrequencySlider)
+{
+    addAndMakeVisible(&peak1FrequencySlider);
+    addAndMakeVisible(&peak1GainSlider);
+    addAndMakeVisible(&peak1QualitySlider);
+    addAndMakeVisible(&peak2FrequencySlider);
+    addAndMakeVisible(&peak2GainSlider);
+    addAndMakeVisible(&peak2QualitySlider);
+    addAndMakeVisible(&lowCutFrequencySlider);
+    addAndMakeVisible(&highCutFrequencySlider);
+    addAndMakeVisible(&responseCurveComponent);
+
+    addAndMakeVisible(peak1FrequencyLabel);
+    peak1FrequencyLabel.setText("Peak 1 Frequency", juce::dontSendNotification);
+    peak1FrequencyLabel.attachToComponent(&peak1FrequencySlider, false);
+
+    addAndMakeVisible(peak1GainLabel);
+    peak1GainLabel.setText("Peak 1 Gain", juce::dontSendNotification);
+    peak1GainLabel.attachToComponent(&peak1GainSlider, false);
+
+    addAndMakeVisible(peak1QualityLabel);
+    peak1QualityLabel.setText("Peak 1 Quality", juce::dontSendNotification);
+    peak1QualityLabel.attachToComponent(&peak1QualitySlider, false);
+
+    // Make sure that before the constructor has finished, you've set the
+    // editor's size to whatever you need it to be.
+    setSize(1200, 1000);
+}
+
+EqualizerAudioProcessorEditor::~EqualizerAudioProcessorEditor()
+{
+}
+
+//==============================================================================
+void EqualizerAudioProcessorEditor::paint (juce::Graphics& g)
+{
+    // (Our component is opaque, so we must completely fill the background with a solid colour)
+    //g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    g.fillAll(juce::Colour::fromRGBA(86, 91, 90, 255));
+}
+
 void EqualizerAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
@@ -150,7 +183,10 @@ void EqualizerAudioProcessorEditor::resized()
 
     juce::Rectangle<int> bounds = getLocalBounds();
     juce::Rectangle<int> topArea = bounds.removeFromTop(bounds.getHeight() * 0.33f);
-    juce::Rectangle<int> responseArea = topArea.removeFromRight(topArea.getWidth() * 0.33f);
+    juce::Rectangle<int> responseArea = topArea.removeFromRight(topArea.getWidth() * 0.85f);
+
+	responseCurveComponent.setBounds(responseArea);
+
     juce::Rectangle<int> middleArea = bounds.removeFromTop(bounds.getHeight() * 0.5f);
     juce::Rectangle<int> bottomArea = bounds;
 
@@ -181,28 +217,4 @@ void EqualizerAudioProcessorEditor::resized()
     peak2FrequencySlider.setBounds(peak2FrequencyArea);
     peak2GainSlider.setBounds(peak2GainArea);
     peak2QualitySlider.setBounds(peak2QualityArea);
-}
-
-void EqualizerAudioProcessorEditor::parameterValueChanged(int parameterIndex, float newValue) {
-    parametersChanged.set(true);
-
-}
-
-void EqualizerAudioProcessorEditor::timerCallback() {
-    if (parametersChanged.compareAndSetBool(false, true)) {
-		const ChainSettings& chainSettings = getChainSettings(audioProcessor.apvts);
-		//channelEQ.setBypassed<ChainPositions::LowCut>(audioProcessor.apvts.getRawParameterValue("LowCutBypass")->load() > 0.5);
-		//channelEQ.setBypassed<ChainPositions::HighCut>(audioProcessor.apvts.getRawParameterValue("HighCutBypass")->load() > 0.5);
-		//channelEQ.setBypassed<ChainPositions::PeakBand1>(audioProcessor.apvts.getRawParameterValue("Peak1Bypass")->load() > 0.5);
-		//channelEQ.setBypassed<ChainPositions::PeakBand2>(audioProcessor.apvts.getRawParameterValue("Peak2Bypass")->load() > 0.5);
-		auto [peak1Coefficients, peak2Coefficients] = makePeakFilters(chainSettings, audioProcessor.getSampleRate());
-        channelEQ.get<ChainPositions::PeakBand1>().coefficients = *peak1Coefficients;
-        channelEQ.get<ChainPositions::PeakBand2>().coefficients = *peak2Coefficients;
-
-		//auto lowCutCoefficients = makeLowCutFilter(audioProcessor.apvts);
-		//auto highCutCoefficients = makeHighCutFilter(audioProcessor.apvts);
-		//updateLowCutFilter(channelEQ.get<ChainPositions::LowCut>(), lowCutCoefficients);
-		//updateHighCutFilter(channelEQ.get<ChainPositions::HighCut>(), highCutCoefficients);
-		repaint();
-    }
 }

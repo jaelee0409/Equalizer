@@ -366,15 +366,13 @@ void EqualizerAudioProcessor::updatePeakFilters(const ChainSettings& chainSettin
 void EqualizerAudioProcessor::updateCutFilters(const ChainSettings& chainSettings) {
     const double sampleRate = getSampleRate();
 
-    const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>> lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
-        chainSettings.lowCutFrequency, sampleRate, (chainSettings.lowCutSlope + 1) * 2);
+	const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>> lowCutCoefficients = makeLowCutFilter(chainSettings, sampleRate);
     resetCutFilterBypass(leftEQ.get<ChainPositions::LowCut>());
     resetCutFilterBypass(rightEQ.get<ChainPositions::LowCut>());
     applyCutFilterCoefficients(leftEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
     applyCutFilterCoefficients(rightEQ.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
 
-    const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>> highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
-        chainSettings.highCutFrequency, sampleRate, (chainSettings.highCutSlope + 1) * 2);
+    const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>> highCutCoefficients = makeHighCutFilter(chainSettings, sampleRate);
     resetCutFilterBypass(leftEQ.get<ChainPositions::HighCut>());
     resetCutFilterBypass(rightEQ.get<ChainPositions::HighCut>());
     applyCutFilterCoefficients(leftEQ.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
@@ -388,7 +386,7 @@ void EqualizerAudioProcessor::resetCutFilterBypass(BandFilter& filterChain) {
     filterChain.template setBypassed<3>(true);
 }
 
-void EqualizerAudioProcessor::applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope) {
+void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope) {
     switch (slope) {
         case Slope_48dB:
             updateCutFilterStage<3>(filterChain, coefficients[3]);
@@ -406,7 +404,7 @@ void EqualizerAudioProcessor::applyCutFilterCoefficients(BandFilter& filterChain
 }
 
 template <int Stage>
-void EqualizerAudioProcessor::updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients) {
+void updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients) {
     filterChain.template get<Stage>().coefficients = coefficients;
     filterChain.template setBypassed<Stage>(false);
 }

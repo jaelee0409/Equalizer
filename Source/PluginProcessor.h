@@ -44,6 +44,21 @@ std::pair<juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>,
     juce::ReferenceCountedObjectPtr<juce::dsp::IIR::Coefficients<float>>>
     makePeakFilters(const ChainSettings& chainSettings, double sampleRate);
 
+void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope);
+
+template <int Stage>
+void updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients);
+
+inline auto makeLowCutFilter(const ChainSettings& chainSettings, double sampleRate) {
+    return juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+        chainSettings.lowCutFrequency, sampleRate, 2 * (chainSettings.lowCutSlope + 1));
+};
+
+inline auto makeHighCutFilter(const ChainSettings& chainSettings, double sampleRate) {
+    return juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+        chainSettings.highCutFrequency, sampleRate, 2 * (chainSettings.highCutSlope + 1));
+};
+
 //==============================================================================
 /**
 */
@@ -102,9 +117,6 @@ private:
     void updateCutFilters(const ChainSettings& chainSettings);
 
     void resetCutFilterBypass(BandFilter& filterChain);
-    void applyCutFilterCoefficients(BandFilter& filterChain, const juce::ReferenceCountedArray<juce::dsp::IIR::Coefficients<float>>& coefficients, Slope slope);
-    template <int Stage>
-    void updateCutFilterStage(BandFilter& filterChain, const typename IIRFilter::CoefficientsPtr& coefficients);
 
     ChannelEQ leftEQ, rightEQ;
 
